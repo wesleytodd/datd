@@ -88,6 +88,7 @@ export default class ArchiveManager extends EventEmitter {
 
 		var datify = through.obj((row, enc, cb) => {
 			var opts = {
+				db: this[_db],
 				importFiles: row.value.importFiles,
 				joinNetwork: row.value.joinNetwork
 			};
@@ -119,6 +120,7 @@ export default class ArchiveManager extends EventEmitter {
 			cb = opts;
 			opts = {};
 		}
+		opts.db = this[_db];
 		opts.importFiles = typeof opts.importFiles === 'boolean' ? opts.importFiles : true;
 		opts.joinNetwork = typeof opts.joinNetwork === 'boolean' ? opts.joinNetwork : true;
 
@@ -199,7 +201,9 @@ function saveArchive (archive, opts, db, cb) {
 }
 
 function initArchive (dir, opts, cb) {
-	Dat(dir, function (err, dat) {
+	Dat(dir, {
+		db: opts.db
+	}, function (err, dat) {
 		if (err) {
 			return cb(err);
 		}
