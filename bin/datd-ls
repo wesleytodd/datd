@@ -1,0 +1,38 @@
+#!/usr/bin/env node
+
+var path = require('path');
+var app = require('commander');
+var createClient = require('../lib/client');
+var Table = require('cli-table');
+
+app.option('-P, --admin-port [port]', 'Daemon admin port for grpc', 29101);
+app.option('-l, --lt [key]', 'Query range less than the key');
+app.option('-g, --gt [key]', 'Query range greater than the key');
+app.parse(process.argv);
+
+var client = createClient(app.adminPort);
+var table = new Table({
+	head: ['Path', 'Key', 'Discovery Key', 'Owner?', 'Live?'],
+	style: {
+		head: ['cyan']
+	}
+});
+var resp = client.list({
+	lt: app.lt,
+	gt: app.gt,
+});
+resp.on('data', function (a) {
+	table.push([
+		path.relative(process.cwd(), a.path),
+		a.key.toString('hex'),
+		a.discoveryKey.toString('hex'),
+		a.owner,
+		a.live
+	]);
+});
+resp.on('end', function (a) {
+	console.log(table.toString());
+});
+resp.on('error', function (err) {
+	console.error(err);
+});

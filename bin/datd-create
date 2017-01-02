@@ -1,0 +1,40 @@
+#!/usr/bin/env node
+var path = require('path');
+var app = require('commander');
+var Table = require('cli-table');
+var createClient = require('../lib/client');
+
+app.option('-p, --path [path]', 'The path to create the dat at');
+app.option('-P, --admin-port [port]', 'Daemon admin port for grpc', 29101);
+app.option('--no-join-network', 'Should not automatically join the network');
+app.option('--no-import-files', 'Should not automatically import the files');
+app.command('create <dir>', {
+	isDefault: true
+}).action(create);
+app.parse(process.argv);
+
+function create (dir) {
+	var client = createClient(app.adminPort);
+	client.create({
+		path: path.resolve(dir),
+		joinNetwork: app.noJoinNetwork,
+		importFiles: app.noImportFiles
+	}, function (err, resp) {
+		if (err) {
+			return console.error(err);
+		}
+		var t = new Table({
+			style: {
+				head: ['cyan']
+			}
+		});
+		t.push(
+			{ 'Path': path.relative(process.cwd(), resp.path) },
+			{ 'Key': resp.key.toString('hex') },
+			{ 'Discovery Key': resp.discoveryKey.toString('hex') },
+			{ 'Owner?': resp.owner },
+			{ 'Live?': resp.live }
+		);
+		console.log(t.toString());
+	});
+}

@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package datd;
+
+service Daemon {
+	// rpc StartServng (string) returns (Empty) {}
+	// rpc StopServng (string) returns (Empty) {}
+
+	rpc Create (CreateRequest) returns (Archive) {}
+	// rpc Remove (string) returns (Empty) {}
+	// rpc Replicate (ArchiveKey) returns (Archive) {}
+
+	rpc List (ArchiveQuery) returns (stream Archive) {}
+
+	rpc JoinNetwork (ArchiveKey) returns (Archive) {}
+}
+
+message Archive {
+	string path = 1;
+	bytes key = 2;
+	bool owner = 3;
+	bool live = 4;
+	bytes discoveryKey = 5;
+}
+
+message CreateRequest {
+	string path = 1;
+	bool importFiles = 2;
+	bool joinNetwork = 3;
+}
+
+message ArchiveKey {
+	bytes key = 1;
+}
+
+message ArchiveQuery {
+	bytes lt = 1;
+	bytes gt = 2;
+}
