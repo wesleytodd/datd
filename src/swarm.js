@@ -1,31 +1,36 @@
-/* es-lint-disable */
+/* es-lint-disable*/
 'use strict';
 
 import swarmDefaults from 'datland-swarm-defaults';
 import discoverySwarm from 'discovery-swarm';
+import hypercore from 'hypercore';
 
-module.exports = function createSwarm (archiveManager, opts = {}) {
+module.exports = function createSwarm (db, archiveManager, opts = {}) {
+	// Create a hypercore to replicate
+	var core = hypercore(db);
+
 	opts.stream = function (peer) {
-		if (!peer || !peer.channel) {
-			return;
+		var stream = core.replicate();
+
+		// Get the requested dat, then replicate it
+		if (peer.channel) {
+			var a = archiveManager.byDiscoveryKey(peer.channel);
+			if (a) {
+				a.archive.replicate({
+					stream: stream
+				});
+			}
 		}
 
-		// Get the requested dat,
-		// then replicate it
-		// var a = archiveManager.byDiscoveryKey(peer.channel);
-
-		return opts.__archive.replicate({
-			upload: true,
-			download: true
-		});
+		return stream;
 	};
 
-	// Not sure what this is, but its done here:
-	// https://github.com/karissa/hyperdiscovery/blob/master/index.js#L14
+	// This tells the swarm that the discovery keys are already hashed
 	opts.hash = false;
 
-	opts.utp = true;
-	opts.tcp = true;
+	// Allow the swarm to be configured
+	opts.utp = typeof opts.utp !== 'undefined' ? opts.utp : true;
+	opts.tcp = typeof opts.tcp !== 'undefined' ? opts.tcp : true;
 
 	return discoverySwarm(swarmDefaults(opts));
 };

@@ -36,17 +36,16 @@ export default class ArchiveManager extends EventEmitter {
 				return this[_archives].slice();
 			}
 		});
+	}
 
+	load (cb = () => {}) {
 		// Load up the archives
-		this.createReadStream()
+		return this.createReadStream()
 			.on('data', (d) => {
 				addToManager(this, d.archive, d.opts);
 			})
-			.on('error', this.emit.bind(this, 'error'))
-			.on('end', () => {
-				// @TODO ??
-				this.emit('ready');
-			});
+			.on('error', cb)
+			.on('end', cb);
 	}
 
 	forEach (fnc, ctx) {
@@ -218,7 +217,6 @@ function initArchive (dir, opts, cb) {
 }
 
 function addToManager (manager, dat, opts) {
-	console.log('added', dat.key.toString('hex'));
 	manager[_archives].push(dat);
 	manager[_archiveOpts][dat.key.toString('hex')] = opts;
 	manager[_byPath][dat.path] = dat;
@@ -231,4 +229,7 @@ function addToManager (manager, dat, opts) {
 			manager.emit('error', err);
 		});
 	}
+
+	// Emit that it was added
+	manager.emit('added', dat);
 }
