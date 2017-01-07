@@ -92,11 +92,6 @@ export default class ArchiveManager extends EventEmitter {
 
 		var datify = through.obj((row, enc, cb) => {
 			var opts = {
-				db: this[_db],
-				drive: this[_drive],
-				key: row.key[1],
-				resume: true,
-				live: true,
 				importFiles: row.value.importFiles,
 				joinNetwork: row.value.joinNetwork
 			};
@@ -111,10 +106,13 @@ export default class ArchiveManager extends EventEmitter {
 			}
 
 			// We dont have this one, create it and return
-			initArchive(row.value.path, opts, function (err, dat) {
-				// Override dat.owner?
-				dat.owner = true;
-				dat.archive.owner = true;
+			initArchive(row.value.path, {
+				db: this[_db],
+				drive: this[_drive],
+				key: row.key[1],
+				resume: true,
+				live: true
+			}, function (err, dat) {
 				cb(err, {
 					archive: dat,
 					opts: opts
@@ -131,8 +129,6 @@ export default class ArchiveManager extends EventEmitter {
 			cb = opts;
 			opts = {};
 		}
-		opts.db = this[_db];
-		opts.drive = this[_drive];
 		opts.importFiles = typeof opts.importFiles === 'boolean' ? opts.importFiles : true;
 		opts.joinNetwork = typeof opts.joinNetwork === 'boolean' ? opts.joinNetwork : true;
 
@@ -142,7 +138,11 @@ export default class ArchiveManager extends EventEmitter {
 			return cb(null, a);
 		}
 
-		initArchive(dir, opts, (err, dat) => {
+		initArchive(dir, {
+			db: this[_db],
+			drive: this[_drive],
+			live: true
+		}, (err, dat) => {
 			if (err) {
 				return cb(err);
 			}
@@ -217,21 +217,10 @@ function initArchive (dir, opts, cb) {
 	Dat(dir, {
 		db: opts.db,
 		drive: opts.drive,
-		key: opts.key
-	}, function initArchiveCb (err, dat) {
-		if (err) {
-			return cb(err);
-		}
-		// if (opts.importFiles) {
-		// 	dat.importFiles(function (err) {
-		// 		manager.emit('error', err);
-		// 	});
-		// }
-		// if (opts.joinNetwork) {
-		// 	dat.joinNetwork();
-		// }
-		cb(null, dat);
-	});
+		key: opts.key,
+		resume: opts.resume,
+		live: opts.live
+	}, cb);
 }
 
 function addToManager (manager, dat, opts) {
