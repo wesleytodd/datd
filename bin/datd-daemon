@@ -3,6 +3,7 @@
 var path = require('path');
 var app = require('commander');
 var grpc = require('grpc');
+var hyperdrive = require('hyperdrive');
 var ArchiveManager = require('../lib/archive-manager').default;
 
 app.option('-d, --database [path]', 'Path to the database', '.db');
@@ -10,23 +11,35 @@ app.option('-p, --port [port]', 'Daemon port for hypercore', 29100);
 app.option('-P, --admin-port [port]', 'Daemon admin port for grpc', 29101);
 app.parse(process.argv);
 
-// Create db
+// Create db and drive
 var db = require('../lib/db')(app.database);
+var drive = hyperdrive(db);
 
 // Create archive manager
-var archiveManager = new ArchiveManager(db);
+var archiveManager = new ArchiveManager(db, drive);
 archiveManager.on('error', function (err) {
 	console.error('ArchiveManager error', err);
 });
 
 // Create the swarm
-// var swarm = require('../lib/swarm')(db, archiveManager);
-// swarm.listen(app.port);
+var swarm = require('../lib/swarm')(drive, archiveManager);
+swarm.listen(app.port);
 
 // When a archive is added to the mananger, join it on the network
-archiveManager.on('added', function (archive) {
+archiveManager.on('added', function (archive, opts) {
 	console.log('Added:', archive.key.toString('hex'));
-	// swarm.join(archive.archive.discoveryKey);
+
+	if (opts.importFiles) {
+		archive.importFiles(function (err) {
+			if (err) {
+				console.error(err);
+			}
+		});
+	}
+
+	if (opts.joinNetwork) {
+		swarm.join(archive.archive.discoveryKey);
+	}
 });
 
 // After we load, open the rpc interface

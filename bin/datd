@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 var app = require('commander');
-app.command('ls', 'List the archives');
+app.command('list', 'List the archives');
 app.command('create', 'Create an archive');
+app.command('remove', 'List the archives');
 app.command('daemon', 'Runs the daemon', {
 	isDefault: true
 });

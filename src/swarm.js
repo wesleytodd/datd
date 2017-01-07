@@ -3,26 +3,19 @@
 
 import swarmDefaults from 'datland-swarm-defaults';
 import discoverySwarm from 'discovery-swarm';
-import hypercore from 'hypercore';
 
-module.exports = function createSwarm (db, archiveManager, opts = {}) {
-	// Create a hypercore to replicate
-	var core = hypercore(db);
-
+module.exports = function createSwarm (drive, archiveManager, opts = {}) {
 	opts.stream = function (peer) {
-		var stream = core.replicate();
-
 		// Get the requested dat, then replicate it
 		if (peer.channel) {
 			var a = archiveManager.byDiscoveryKey(peer.channel);
 			if (a) {
-				a.archive.replicate({
-					stream: stream
-				});
+				console.log('replicating archive', a.key.toString('hex'));
+				return a.archive.replicate();
 			}
 		}
 
-		return stream;
+		return drive.replicate();
 	};
 
 	// This tells the swarm that the discovery keys are already hashed
@@ -32,5 +25,22 @@ module.exports = function createSwarm (db, archiveManager, opts = {}) {
 	opts.utp = typeof opts.utp !== 'undefined' ? opts.utp : true;
 	opts.tcp = typeof opts.tcp !== 'undefined' ? opts.tcp : true;
 
-	return discoverySwarm(swarmDefaults(opts));
+	var swarm = discoverySwarm(swarmDefaults(opts));
+
+	swarm.on('connection', function (stream, info) {
+		if (info.channel) {
+			return;
+		}
+		stream.on('open', function (key) {
+			var a = archiveManager.byDiscoveryKey(key);
+			if (a) {
+				console.log('replicating archive on con', a.key.toString('hex'));
+				a.archive.replicate({
+					stream: stream
+				});
+			}
+		});
+	});
+
+	return swarm;
 };
