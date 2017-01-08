@@ -1,16 +1,15 @@
-/* es-lint-disable*/
 'use strict';
 
 import swarmDefaults from 'datland-swarm-defaults';
 import discoverySwarm from 'discovery-swarm';
 
 module.exports = function createSwarm (drive, archiveManager, opts = {}) {
-	opts.stream = function (peer) {
+	// Setup the stream handler
+	opts.stream = opts.stream || function (peer) {
 		// Get the requested dat, then replicate it
 		if (peer.channel) {
 			var a = archiveManager.byDiscoveryKey(peer.channel);
 			if (a) {
-				console.log('replicating archive', a.key.toString('hex'));
 				return a.archive.replicate();
 			}
 		}
@@ -27,6 +26,7 @@ module.exports = function createSwarm (drive, archiveManager, opts = {}) {
 
 	var swarm = discoverySwarm(swarmDefaults(opts));
 
+	// @TODO havent seen this hit yet...maybe remove?
 	swarm.on('connection', function (stream, info) {
 		if (info.channel) {
 			return;

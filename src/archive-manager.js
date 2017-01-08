@@ -93,8 +93,7 @@ export default class ArchiveManager extends EventEmitter {
 		var datify = through.obj((row, enc, cb) => {
 			var opts = {
 				importFiles: row.value.importFiles,
-				joinNetwork: row.value.joinNetwork,
-				owner: row.value.owner
+				joinNetwork: row.value.joinNetwork
 			};
 
 			// We have this dat, just return it
@@ -114,11 +113,6 @@ export default class ArchiveManager extends EventEmitter {
 				resume: true,
 				live: true
 			}, function (err, dat) {
-				if (opts.owner) {
-					dat.owner = true;
-					dat.archive.owner = true;
-				}
-
 				cb(err, {
 					archive: dat,
 					opts: opts
@@ -135,7 +129,6 @@ export default class ArchiveManager extends EventEmitter {
 			cb = opts;
 			opts = {};
 		}
-		opts.owner = true;
 		opts.importFiles = typeof opts.importFiles === 'boolean' ? opts.importFiles : true;
 		opts.joinNetwork = typeof opts.joinNetwork === 'boolean' ? opts.joinNetwork : true;
 
@@ -216,8 +209,7 @@ function saveArchive (archive, opts, db, cb) {
 	db.put(['archive', archive.key], {
 		path: archive.path,
 		importFiles: opts.importFiles,
-		joinNetwork: opts.joinNetwork,
-		owner: opts.owner
+		joinNetwork: opts.joinNetwork
 	}, cb);
 }
 
@@ -228,7 +220,17 @@ function initArchive (dir, opts, cb) {
 		key: opts.key,
 		resume: opts.resume,
 		live: opts.live
-	}, cb);
+	}, function (err, dat) {
+		if (err) {
+			return cb(err);
+		}
+		dat.archive.open(function (err) {
+			if (err) {
+				return cb(err);
+			}
+			cb(null, dat);
+		});
+	});
 }
 
 function addToManager (manager, dat, opts) {
