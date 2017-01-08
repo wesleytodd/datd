@@ -17,8 +17,8 @@ function create (dir) {
 	var client = createClient(app.adminPort);
 	client.create({
 		path: path.resolve(dir),
-		joinNetwork: app.noJoinNetwork,
-		importFiles: app.noImportFiles
+		joinNetwork: !app.noJoinNetwork,
+		importFiles: !app.noImportFiles
 	}, function (err, resp) {
 		if (err) {
 			return console.error(err);

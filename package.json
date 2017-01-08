@@ -4,7 +4,11 @@
   "description": "A daemon for dats",
   "main": "index.js",
   "bin": {
-    "datd": "./bin/datd"
+    "datd": "./bin/datd",
+    "datd-daemon": "./bin/datd-daemon",
+    "datd-list": "./bin/datd-list",
+    "datd-create": "./bin/datd-create",
+    "datd-remove": "./bin/datd-remove"
   },
   "scripts": {
     "test": "npm run babel && happiness && mocha --require babel-register",
@@ -17,6 +21,10 @@
     "dat",
     "daemon"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/wesleytodd/datd.git"
+  },
   "author": "Wes <wes@wesleytodd.com>",
   "license": "ISC",
   "devDependencies": {
@@ -30,7 +38,9 @@
     "bytewise": "^1.1.0",
     "cli-table": "^0.3.1",
     "commander": "^2.9.0",
-    "dat-node": "^1.0.0",
+    "dat-node": "git@github.com:wesleytodd/dat-node.git#dat-prop-getters",
+    "datland-swarm-defaults": "^1.0.2",
+    "discovery-swarm": "^4.2.0",
     "grpc": "^1.0.1",
     "level": "^1.5.0",
     "pump": "^1.0.2",

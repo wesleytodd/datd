@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+var path = require('path');
+var app = require('commander');
+var Table = require('cli-table');
+var createClient = require('../lib/client');
+
+app.option('-p, --path [path]', 'The path to create the dat at');
+app.option('-P, --admin-port [port]', 'Daemon admin port for grpc', 29101);
+app.command('remove <path>', {
+	isDefault: true
+}).action(create);
+app.parse(process.argv);
+
+function remove (dir) {
+	var client = createClient(app.adminPort);
+	client.create({
+		path: path.resolve(dir)
+	}, function (err, resp) {
+		if (err) {
+			return console.error(err);
+		}
+		// @TODO
+	});
+}

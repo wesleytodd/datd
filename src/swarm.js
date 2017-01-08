@@ -1,31 +1,46 @@
-/* es-lint-disable */
 'use strict';
 
 import swarmDefaults from 'datland-swarm-defaults';
 import discoverySwarm from 'discovery-swarm';
 
-module.exports = function createSwarm (archiveManager, opts = {}) {
-	opts.stream = function (peer) {
-		if (!peer || !peer.channel) {
-			return;
+module.exports = function createSwarm (drive, archiveManager, opts = {}) {
+	// Setup the stream handler
+	opts.stream = opts.stream || function (peer) {
+		// Get the requested dat, then replicate it
+		if (peer.channel) {
+			var a = archiveManager.byDiscoveryKey(peer.channel);
+			if (a) {
+				return a.archive.replicate();
+			}
 		}
 
-		// Get the requested dat,
-		// then replicate it
-		// var a = archiveManager.byDiscoveryKey(peer.channel);
-
-		return opts.__archive.replicate({
-			upload: true,
-			download: true
-		});
+		return drive.replicate();
 	};
 
-	// Not sure what this is, but its done here:
-	// https://github.com/karissa/hyperdiscovery/blob/master/index.js#L14
+	// This tells the swarm that the discovery keys are already hashed
 	opts.hash = false;
 
-	opts.utp = true;
-	opts.tcp = true;
+	// Allow the swarm to be configured
+	opts.utp = typeof opts.utp !== 'undefined' ? opts.utp : true;
+	opts.tcp = typeof opts.tcp !== 'undefined' ? opts.tcp : true;
 
-	return discoverySwarm(swarmDefaults(opts));
+	var swarm = discoverySwarm(swarmDefaults(opts));
+
+	// @TODO havent seen this hit yet...maybe remove?
+	swarm.on('connection', function (stream, info) {
+		if (info.channel) {
+			return;
+		}
+		stream.on('open', function (key) {
+			var a = archiveManager.byDiscoveryKey(key);
+			if (a) {
+				console.log('replicating archive on con', a.key.toString('hex'));
+				a.archive.replicate({
+					stream: stream
+				});
+			}
+		});
+	});
+
+	return swarm;
 };

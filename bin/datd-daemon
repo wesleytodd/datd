@@ -3,89 +3,46 @@
 var path = require('path');
 var app = require('commander');
 var grpc = require('grpc');
+var hyperdrive = require('hyperdrive');
 var ArchiveManager = require('../lib/archive-manager').default;
 
 app.option('-d, --database [path]', 'Path to the database', '.db');
+app.option('-p, --port [port]', 'Daemon port for hypercore', 29100);
 app.option('-P, --admin-port [port]', 'Daemon admin port for grpc', 29101);
 app.parse(process.argv);
 
-// Create db
+// Create db and drive
 var db = require('../lib/db')(app.database);
+var drive = hyperdrive(db);
 
 // Create archive manager
-var m = new ArchiveManager(db);
-m.on('error', function (err) {
+var archiveManager = new ArchiveManager(db, drive);
+archiveManager.on('error', function (err) {
 	console.error('ArchiveManager error', err);
 });
 
-// When its ready, join the network for each
-m.on('ready', function () {
-	// Setup grpc
-	var datd = grpc.load(path.join(__dirname, '..', 'datd.proto')).datd;
-	var server = new grpc.Server();
-	server.addProtoService(datd.Daemon.service, {
-		list: listArchives,
-		create: createArchive,
-		joinNetwork: joinNetwork
-	});
+// Create the swarm
+var swarm = require('../lib/swarm')(drive, archiveManager);
+swarm.listen(app.port);
 
-	server.bind('0.0.0.0:' + app.adminPort, grpc.ServerCredentials.createInsecure());
-	server.start();
+// When a archive is added to the mananger, join it on the network
+archiveManager.on('added', function (archive, opts) {
+	console.log('Added:', archive.key.toString('hex'));
+
+	if (opts.importFiles) {
+		archive.importFiles(function (err) {
+			if (err) {
+				console.error(err);
+			}
+		});
+	}
+
+	if (opts.joinNetwork) {
+		swarm.join(archive.archive.discoveryKey);
+	}
 });
 
-function listArchives (call) {
-	m.createReadStream({
-		lt: call.request.lt.length ? call.request.lt : null,
-		gt: call.request.gt.length ? call.request.gt : null,
-	})
-		.on('data', function (d) {
-			call.write({
-				path: d.archive.path,
-				key: d.archive.key,
-				owner: d.archive.owner,
-				live: d.archive.live,
-				discoveryKey: d.archive.archive.discoveryKey
-			});
-		})
-		.on('error', function (err) {
-			call.emit('error', err);
-		})
-		.on('end', function () {
-			call.end();
-		});
-}
-
-function createArchive (call, cb) {
-	m.create(call.request.path, {
-		importFiles: call.request.importFiles,
-		joinNetwork: call.request.joinNetwork
-	}, function (err, archive) {
-		if (err) {
-			// do something
-			return cb(err);
-		}
-		cb(null, {
-			path: archive.path,
-			key: archive.key,
-			owner: archive.owner,
-			live: archive.live,
-			discoveryKey: archive.archive.discoveryKey
-		});
-	});
-}
-
-function joinNetwork (call, cb) {
-	m.joinNetwork(call.request.key, function (err, network, archive) {
-		if (err) {
-			// do something
-			return cb(err);
-		}
-		cb(null, {
-			path: archive.path,
-			key: archive.key,
-			owner: archive.owner,
-			live: archive.live,
-			discoveryKey: archive.archive.discoveryKey
-		});
-	});
-}
+// After we load, open the rpc interface
+archiveManager.load(function () {
+	require('../lib/rpc')(archiveManager, app.adminPort);
+});

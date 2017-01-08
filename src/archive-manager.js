@@ -6,6 +6,7 @@ import through from 'through2';
 import pump from 'pump';
 
 const _db = Symbol('db');
+const _drive = Symbol('drive');
 const _archives = Symbol('archives');
 const _archiveOpts = Symbol('archivesOpts');
 const _byPath = Symbol('byPath');
@@ -13,14 +14,18 @@ const _byKey = Symbol('byKey');
 const _byDiscoveryKey = Symbol('byDiscoveryKey');
 
 export default class ArchiveManager extends EventEmitter {
-	constructor (db) {
+	constructor (db, drive) {
 		if (!db) {
 			throw new TypeError('ArchiveManager requires a leveldb connection');
+		}
+		if (!drive) {
+			throw new TypeError('ArchiveManager requires a hyperdrive instance');
 		}
 		super();
 
 		// Save private db reference
 		this[_db] = db;
+		this[_drive] = drive;
 
 		// Indecies to speed lookups
 		this[_archives] = [];
@@ -36,17 +41,16 @@ export default class ArchiveManager extends EventEmitter {
 				return this[_archives].slice();
 			}
 		});
+	}
 
+	load (cb = () => {}) {
 		// Load up the archives
-		this.createReadStream()
+		return this.createReadStream()
 			.on('data', (d) => {
 				addToManager(this, d.archive, d.opts);
 			})
-			.on('error', this.emit.bind(this, 'error'))
-			.on('end', () => {
-				// @TODO ??
-				this.emit('ready');
-			});
+			.on('error', cb)
+			.on('end', cb);
 	}
 
 	forEach (fnc, ctx) {
@@ -102,7 +106,13 @@ export default class ArchiveManager extends EventEmitter {
 			}
 
 			// We dont have this one, create it and return
-			initArchive(row.value.path, opts, function (err, dat) {
+			initArchive(row.value.path, {
+				db: this[_db],
+				drive: this[_drive],
+				key: row.key[1],
+				resume: true,
+				live: true
+			}, function (err, dat) {
 				cb(err, {
 					archive: dat,
 					opts: opts
@@ -128,7 +138,11 @@ export default class ArchiveManager extends EventEmitter {
 			return cb(null, a);
 		}
 
-		initArchive(dir, opts, (err, dat) => {
+		initArchive(dir, {
+			db: this[_db],
+			drive: this[_drive],
+			live: true
+		}, (err, dat) => {
 			if (err) {
 				return cb(err);
 			}
@@ -168,7 +182,8 @@ export default class ArchiveManager extends EventEmitter {
 			return cb(new Error('No archive by that key'));
 		}
 
-		// Only join if no current networ
+		// @TODO
+		// Only join if no current network
 		if (!a.network) {
 			a.joinNetwork();
 		}
@@ -199,27 +214,38 @@ function saveArchive (archive, opts, db, cb) {
 }
 
 function initArchive (dir, opts, cb) {
-	Dat(dir, function (err, dat) {
+	Dat(dir, {
+		db: opts.db,
+		drive: opts.drive,
+		key: opts.key,
+		resume: opts.resume,
+		live: opts.live
+	}, function (err, dat) {
 		if (err) {
 			return cb(err);
 		}
-		if (opts.importFiles) {
-			dat.importFiles();
-		}
-		if (opts.joinNetwork) {
-			dat.joinNetwork();
-		}
-		cb(null, dat);
+		dat.archive.open(function (err) {
+			if (err) {
+				return cb(err);
+			}
+			cb(null, dat);
+		});
 	});
 }
 
 function addToManager (manager, dat, opts) {
-	console.log('added', dat.key.toString('hex'));
+	var key = dat.key.toString('hex');
+
 	manager[_archives].push(dat);
-	manager[_archiveOpts][dat.key.toString('hex')] = opts;
 	manager[_byPath][dat.path] = dat;
-	manager[_byKey][dat.key.toString('hex')] = dat;
+	manager[_byKey][key] = dat;
 	manager[_byDiscoveryKey][dat.archive.discoveryKey.toString('hex')] = dat;
+
+	// Save opts
+	manager[_archiveOpts][key] = {
+		importFiles: opts.importFiles,
+		joinNetwork: opts.joinNetwork
+	};
 
 	// @TODO Do more with the importer
 	if (dat.importer) {
@@ -227,4 +253,7 @@ function addToManager (manager, dat, opts) {
 			manager.emit('error', err);
 		});
 	}
+
+	// Emit that it was added
+	manager.emit('added', dat, manager[_archiveOpts][key]);
 }
